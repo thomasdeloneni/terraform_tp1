@@ -1,27 +1,29 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.region
-
-  default_tags {
-    tags = {
-      ManagedBy   = "Terraform"
-      Environment = var.environment
-      StudentName = var.student_name
-      PromoName   = var.promo_name
-    }
-  }
-}
-
 locals {
   prefix = "tf-${var.student_name}-${var.environment}"
+
+  common_tags = {
+    course  = "TF-2026-02"
+    env     = var.environment
+    managed = "terraform"
+    owner   = var.student_name
+  }
+}
+
+# --- AMI Ubuntu 22.04 LTS ---
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
 # --- VPC ---
@@ -29,9 +31,9 @@ locals {
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-vpc"
-  }
+  })
 }
 
 # --- Subnets ---
@@ -42,9 +44,9 @@ resource "aws_subnet" "public" {
   availability_zone       = "${var.region}a"
   map_public_ip_on_launch = true
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-subnet-public"
-  }
+  })
 }
 
 resource "aws_subnet" "private" {
@@ -52,9 +54,9 @@ resource "aws_subnet" "private" {
   cidr_block        = var.private_subnet_cidr
   availability_zone = "${var.region}a"
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-subnet-private"
-  }
+  })
 }
 
 # --- Internet Gateway ---
@@ -62,9 +64,9 @@ resource "aws_subnet" "private" {
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-igw"
-  }
+  })
 }
 
 # --- Route table publique ---
@@ -77,14 +79,36 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-rt-public"
-  }
+  })
 }
 
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
+}
+
+# --- Instance EC2 web ---
+
+resource "aws_instance" "web" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.public.id
+  vpc_security_group_ids      = [aws_security_group.web.id]
+  associate_public_ip_address = true
+  key_name                    = var.key_pair_name
+  user_data                   = file("user-data.sh")
+
+  root_block_device {
+    volume_size = 10
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${local.prefix}-ec2-web"
+  })
 }
 
 # --- Security Group web ---
@@ -117,7 +141,7 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
+  tags = merge(local.common_tags, {
     Name = "${local.prefix}-sg-web"
-  }
+  })
 }

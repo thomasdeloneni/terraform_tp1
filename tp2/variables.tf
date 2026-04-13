@@ -39,3 +39,9 @@ variable "private_subnet_cidr" {
   type        = string
   default     = "10.10.2.0/24"
 }
+
+variable "key_pair_name" {
+  description = "Nom de la key pair AWS importée, utilisée pour les instances EC2"
+  type        = string
+  default     = "tf-thomas_delon-dev-key"
+}
