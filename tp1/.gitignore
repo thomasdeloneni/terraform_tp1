@@ -46,4 +46,4 @@ terraform.rc
 .terraform.lock.hcl
 .aws/credentials
 .aws/config
-*.tfvars
+*.tfvars.aws/
