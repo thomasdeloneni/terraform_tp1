@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.10.0"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -12,8 +14,6 @@ provider "aws" {
 
   default_tags {
     tags = {
-      ManagedBy   = "Terraform"
-      Environment = var.environment
       StudentName = var.student_name
       PromoName   = var.promo_name
     }
